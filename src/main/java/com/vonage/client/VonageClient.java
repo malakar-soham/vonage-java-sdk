@@ -19,6 +19,7 @@ package com.vonage.client;
 import com.vonage.client.account.AccountClient;
 import com.vonage.client.application.ApplicationClient;
 import com.vonage.client.auth.*;
+import com.vonage.client.auth.hashutils.HashUtil;
 import com.vonage.client.conversion.ConversionClient;
 import com.vonage.client.insight.InsightClient;
 import com.vonage.client.numbers.NumbersClient;
@@ -57,59 +58,59 @@ public class VonageClient {
     private HttpWrapper httpWrapper;
 
     private VonageClient(Builder builder) {
-        this.httpWrapper = new HttpWrapper(builder.httpConfig, builder.authCollection);
-        this.httpWrapper.setHttpClient(builder.httpClient);
+        httpWrapper = new HttpWrapper(builder.httpConfig, builder.authCollection);
+        httpWrapper.setHttpClient(builder.httpClient);
 
-        this.account = new AccountClient(this.httpWrapper);
-        this.application = new ApplicationClient(this.httpWrapper);
-        this.insight = new InsightClient(this.httpWrapper);
-        this.numbers = new NumbersClient(this.httpWrapper);
-        this.verify = new VerifyClient(this.httpWrapper);
-        this.voice = new VoiceClient(this.httpWrapper);
-        this.sms = new SmsClient(this.httpWrapper);
-        this.sns = new SnsClient(this.httpWrapper);
-        this.conversion = new ConversionClient(this.httpWrapper);
-        this.redact = new RedactClient(this.httpWrapper);
+        account = new AccountClient(httpWrapper);
+        application = new ApplicationClient(httpWrapper);
+        insight = new InsightClient(httpWrapper);
+        numbers = new NumbersClient(httpWrapper);
+        verify = new VerifyClient(httpWrapper);
+        voice = new VoiceClient(httpWrapper);
+        sms = new SmsClient(httpWrapper);
+        sns = new SnsClient(httpWrapper);
+        conversion = new ConversionClient(httpWrapper);
+        redact = new RedactClient(httpWrapper);
     }
 
     public AccountClient getAccountClient() {
-        return this.account;
+        return account;
     }
 
     public ApplicationClient getApplicationClient() {
-        return this.application;
+        return application;
     }
 
     public InsightClient getInsightClient() {
-        return this.insight;
+        return insight;
     }
 
     public NumbersClient getNumbersClient() {
-        return this.numbers;
+        return numbers;
     }
 
     public SmsClient getSmsClient() {
-        return this.sms;
+        return sms;
     }
 
     public SnsClient getSnsClient() {
-        return this.sns;
+        return sns;
     }
 
     public VerifyClient getVerifyClient() {
-        return this.verify;
+        return verify;
     }
 
     public VoiceClient getVoiceClient() {
-        return this.voice;
+        return voice;
     }
 
     public ConversionClient getConversionClient() {
-        return this.conversion;
+        return conversion;
     }
 
     public RedactClient getRedactClient() {
-        return this.redact;
+        return redact;
     }
 
     /**
@@ -120,7 +121,7 @@ public class VonageClient {
      * @throws VonageUnacceptableAuthException if no {@link JWTAuthMethod} is available
      */
     public String generateJwt() throws VonageUnacceptableAuthException {
-        JWTAuthMethod authMethod = this.httpWrapper.getAuthCollection().getAuth(JWTAuthMethod.class);
+        JWTAuthMethod authMethod = httpWrapper.getAuthCollection().getAuth(JWTAuthMethod.class);
         return authMethod.generateToken();
     }
 
@@ -144,6 +145,7 @@ public class VonageClient {
         private String apiSecret;
         private String signatureSecret;
         private byte[] privateKeyContents;
+        private HashUtil.HashType hashType = HashUtil.HashType.MD5;
 
         /**
          * @param httpConfig Configuration options for the {@link HttpWrapper}
@@ -215,6 +217,17 @@ public class VonageClient {
         }
 
         /**
+         *
+         * @param hashType The hashing strategy for signature keys.
+         *
+         * @return The {@link Builder} to keep building.
+         */
+        public Builder hashType(HashUtil.HashType hashType) {
+            this.hashType = hashType;
+            return this;
+        }
+
+        /**
          * When setting the contents of your private key, it is also expected that {@link #applicationId(String)} will
          * also be set.
          *
@@ -278,16 +291,22 @@ public class VonageClient {
          *                                      generating an {@link JWTAuthMethod} with the provided credentials.
          */
         public VonageClient build() {
-            this.authCollection = generateAuthCollection(this.applicationId,
-                    this.apiKey,
-                    this.apiSecret,
-                    this.signatureSecret,
-                    this.privateKeyContents
-            );
+            this.authCollection = generateAuthCollection(applicationId,
+                    apiKey,
+                    apiSecret,
+                    signatureSecret,
+                    privateKeyContents,
+                    hashType);
+          
             return new VonageClient(this);
         }
 
-        private AuthCollection generateAuthCollection(String applicationId, String key, String secret, String signature, byte[] privateKeyContents) {
+        private AuthCollection generateAuthCollection(String applicationId,
+                                                      String key,
+                                                      String secret,
+                                                      String signature,
+                                                      byte[] privateKeyContents,
+                                                      HashUtil.HashType hashType) {
             AuthCollection authMethods = new AuthCollection();
 
             try {
@@ -301,7 +320,7 @@ public class VonageClient {
             }
 
             if (key != null && signature != null) {
-                authMethods.add(new SignatureAuthMethod(key, signature));
+                authMethods.add(new SignatureAuthMethod(key, signature, hashType));
             }
 
             if (applicationId != null && privateKeyContents != null) {
